@@ -4,7 +4,6 @@ from services.translator import TranslationService
 from services.audio_recorder import record_audio
 from prompts import CONVO_PROMPT
 import os
-import sys
 
 # --- Initialize services ---
 translator = TranslationService()
