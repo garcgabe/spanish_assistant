@@ -1,7 +1,7 @@
 elevenlabs==1.12.1
-openai==1.14.2
+openai
 # sounddevice==0.4.6
-streamlit==1.32.2
+streamlit
 streamlit-webrtc
 numpy
 scipy
