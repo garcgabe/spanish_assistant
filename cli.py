@@ -1,8 +1,10 @@
 from services.translator import TranslationService
 from services.ai_service import AIService
-from services.audio_recorder import record_audio
+from services.audio_recorder import record_audio_cli
 from prompts import CONVO_PROMPT
 import os
+
+
 
 def main():
     translator = TranslationService()
@@ -16,8 +18,8 @@ def main():
         if choice == '1':
             text = input("Tu mensaje en español: ")
         else:
-            path = record_audio()
-            text = ai.transcribe_audio(path)
+            audio_path = record_audio_cli()
+            text = ai.transcribe_audio(audio_path)
             print("Transcribed:", text)
 
         if text.lower() in ['quit', 'exit']:

@@ -1,26 +1,33 @@
+# services/audio_recorder.py
+
 import sounddevice as sd
 import numpy as np
 import tempfile
-from scipy.io.wavfile import write
 import time
+from scipy.io.wavfile import write
 from config import SAMPLE_RATE, MAX_RECORD_TIME
 
-def record_audio() -> str:
-    duration = MAX_RECORD_TIME
+
+def record_audio_cli() -> str:
+    """Record audio from the command line using sounddevice"""
     print("Press ENTER to start recording...")
     input()
-    print("Recording... Press ENTER to stop.")
+    print("Recording... Press ENTER to stop (max 60s)")
+    recording = sd.rec(
+        int(MAX_RECORD_TIME * SAMPLE_RATE),
+        samplerate=SAMPLE_RATE,
+        channels=1,
+        dtype='float32'
+    )
 
-    recording = sd.rec(int(duration * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='float32')
-
-    start = time.time()
+    start_time = time.time()
     input()
     sd.stop()
-    elapsed = time.time() - start
+    elapsed = time.time() - start_time
 
     trimmed = recording[:int(elapsed * SAMPLE_RATE)]
     trimmed = np.int16(trimmed * 32767)
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
         write(f.name, SAMPLE_RATE, trimmed)
         return f.name

@@ -1,77 +1,100 @@
+# ui/streamlit_app.py
+
 import streamlit as st
+import sys, os
+
+# Add parent path to import services
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import numpy as np
+import av
+import tempfile
+from scipy.io.wavfile import write
+
 from services.ai_service import AIService
 from services.translator import TranslationService
-from services.audio_recorder import record_audio
 from prompts import CONVO_PROMPT
-import os
 
-
-
-# --- Initialize services ---
-translator = TranslationService()
+# --- Init services ---
 ai_service = AIService()
+translator = TranslationService()
 
 # --- Session State ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [{"role": "system", "content": CONVO_PROMPT}]
 if "input_mode" not in st.session_state:
     st.session_state.input_mode = "Text"
-if "last_audio" in st.session_state:
-    try:
-        os.remove(st.session_state.last_audio)
-    except:
-        pass
-    del st.session_state.last_audio
 
-# --- Title ---
 st.title("🇪🇸 Spanish Conversation Assistant")
+st.markdown("Talk to the AI in Spanish — with voice or text input.")
 
-st.markdown("Talk to the assistant in Spanish and get voice + text responses.")
-
-# --- Input Mode Toggle ---
-st.radio("Input Mode:", ["Text", "Voice"], horizontal=True, key="input_mode")
+# --- Input mode toggle ---
+st.radio("Input Mode", ["Text", "Voice"], key="input_mode", horizontal=True)
 
 user_input = None
 
-# --- Get User Input ---
+# --- Text Input Mode ---
 if st.session_state.input_mode == "Text":
     with st.form("text_input_form", clear_on_submit=True):
-        user_input = st.text_input("Tu mensaje en español:", key="text_input")
+        user_input = st.text_input("Tu mensaje en español:")
         submitted = st.form_submit_button("Send")
         if not submitted:
             user_input = None
-else:
-    if st.button("🎤 Record Voice"):
-        audio_path = record_audio()
-        user_input = ai_service.transcribe_audio(audio_path)
-        st.write(f"**You said:** {user_input}")
-        os.remove(audio_path)
 
-# --- Handle Input & Response ---
+# --- Voice Input Mode (via WebRTC) ---
+else:
+    class AudioProcessor(AudioProcessorBase):
+        def __init__(self):
+            self.frames = []
+
+        def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+            self.frames.append(frame.to_ndarray())
+            return frame
+
+    ctx = webrtc_streamer(
+        key="webrtc",
+        mode="SENDRECV",
+        audio_receiver_size=1024,
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        media_stream_constraints={"video": False, "audio": True},
+        audio_processor_factory=AudioProcessor,
+    )
+
+    if ctx and ctx.state.playing and ctx.audio_processor:
+        st.info("Recording... Press STOP above when done.")
+    elif ctx and ctx.audio_processor and ctx.audio_processor.frames:
+        if st.button("Transcribe"):
+            audio_data = np.concatenate(ctx.audio_processor.frames, axis=0)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                write(f.name, 48000, audio_data.astype(np.int16))
+                transcription = ai_service.transcribe_audio(f.name)
+                user_input = transcription
+                st.markdown(f"**You said:** {transcription}")
+                os.remove(f.name)
+
+# --- Process User Input ---
 if user_input:
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-    # Translate (optional for learner)
     translation = translator.translate(user_input)
     if translation:
         st.markdown(f"**English translation:** {translation}")
 
-    # Get AI response
     with st.spinner("Thinking..."):
         response = ai_service.get_text_completion(st.session_state.chat_history)
+
     st.session_state.chat_history.append({"role": "assistant", "content": response})
 
-    # Convert response to speech
-    speech_file = ai_service.text_to_speech(response)
-    if speech_file:
-        st.audio(speech_file, format="audio/mp3")
-        st.session_state.last_audio = speech_file  # For cleanup
+    # TTS
+    speech_path = ai_service.text_to_speech(response)
+    if speech_path:
+        st.audio(speech_path, format="audio/mp3")
+        os.remove(speech_path)
 
-# --- Show Conversation ---
-st.markdown("---")
+# --- Chat Display ---
+st.divider()
 st.subheader("🗨️ Conversation")
-for message in st.session_state.chat_history[1:]:  # Skip system prompt
-    if message["role"] == "user":
-        st.markdown(f"**🧑 You:** {message['content']}")
-    elif message["role"] == "assistant":
-        st.markdown(f"**🤖 Assistant:** {message['content']}")
+for msg in st.session_state.chat_history[1:]:  # skip system message
+    speaker = "🧑 You" if msg["role"] == "user" else "🤖 Assistant"
+    st.markdown(f"**{speaker}:** {msg['content']}")
