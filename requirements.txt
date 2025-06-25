@@ -1,9 +1,3 @@
 elevenlabs==1.12.1
-matplotlib==3.9.0
-numpy==1.26.4
 openai==1.14.2
-playsound==1.3.0
 streamlit==1.32.2
-toml==0.10.2
-
-
