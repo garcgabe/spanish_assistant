@@ -28,15 +28,16 @@ def main():
         translation = translator.translate(text)
         print("English:", translation)
 
-        context.append({"role": "user", "content": text})
-        response = ai.get_text_completion(context)
-        print("AI:", response)
+        if choice != '1':
+            context.append({"role": "user", "content": text})
+            response = ai.get_text_completion(context)
+            print("AI:", response)
 
-        speech = ai.text_to_speech(response)
-        ai.play_audio(speech)
-        os.remove(speech)
+            speech = ai.text_to_speech(response)
+            ai.play_audio(speech)
+            os.remove(speech)
 
-        context.append({"role": "assistant", "content": response})
+            context.append({"role": "assistant", "content": response})
 
 if __name__ == "__main__":
     main()
