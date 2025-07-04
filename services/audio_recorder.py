@@ -24,6 +24,7 @@ def record_audio_cli() -> str:
     input()
     sd.stop()
     elapsed = time.time() - start_time
+    print("Recording stopped. Transcribing...")
 
     trimmed = recording[:int(elapsed * SAMPLE_RATE)]
     trimmed = np.int16(trimmed * 32767)
